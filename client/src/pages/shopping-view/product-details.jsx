@@ -12,6 +12,8 @@ import ShoppingProductTile from "@/components/shopping-view/product-tile";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/form-elements";
 import StarRating from "@/components/common/star-rating";
+import StarPicker from "@/components/common/star-picker";
+import api from "@/api/axios";
 import { toast } from "sonner";
 
 const DEFAULT_SIZES = ["xs", "s", "m", "l", "xl"];
@@ -26,7 +28,8 @@ function ShoppingProductDetails() {
 
   const [selectedSize, setSelectedSize] = useState(null);
   const [reviewMessage, setReviewMessage] = useState("");
-  const [reviewValue, setReviewValue] = useState(5);
+  const [reviewValue, setReviewValue] = useState(0);
+  const [canReview, setCanReview] = useState(false);
 
   useEffect(() => {
     dispatch(fetchProductDetails(productId));
@@ -35,6 +38,18 @@ function ShoppingProductDetails() {
     window.scrollTo(0, 0);
     return () => dispatch(clearProductDetails());
   }, [productId, dispatch]);
+
+  // Has this customer bought and received the product?
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      api
+        .get(`/shop/review/can-review/${productId}`)
+        .then((res) => setCanReview(!!res.data.canReview))
+        .catch(() => setCanReview(false));
+    } else {
+      setCanReview(false);
+    }
+  }, [productId, user]);
 
   useEffect(() => {
     if (productDetails?.category) {
@@ -68,6 +83,7 @@ function ShoppingProductDetails() {
 
   function handleAddReview() {
     if (!user) return toast.error("Please login first");
+    if (!reviewValue) return toast.error("Please select a star rating");
     dispatch(
       addReview({
         productId: product._id,
@@ -78,9 +94,11 @@ function ShoppingProductDetails() {
       })
     ).then((res) => {
       if (res.payload?.success) {
-        toast.success("Review added");
+        toast.success(res.payload.updated ? "Your review was updated" : "Review added");
         setReviewMessage("");
+        setReviewValue(0);
         dispatch(getReviews(product._id));
+        dispatch(fetchProductDetails(product._id));
       } else {
         toast.error(res.payload?.message || "Could not add review");
       }
@@ -170,25 +188,39 @@ function ShoppingProductDetails() {
           ))}
         </div>
 
-        <Textarea
-          placeholder="Write a review..."
-          value={reviewMessage}
-          onChange={(e) => setReviewMessage(e.target.value)}
-        />
-        <div className="mt-2 flex items-center gap-2">
-          <select
-            value={reviewValue}
-            onChange={(e) => setReviewValue(Number(e.target.value))}
-            className="rounded-md border border-slate-300 px-2 py-1 text-sm"
-          >
-            {[5, 4, 3, 2, 1].map((n) => (
-              <option key={n} value={n}>
-                {n} Star{n > 1 ? "s" : ""}
-              </option>
-            ))}
-          </select>
-          <Button onClick={handleAddReview}>Submit Review</Button>
-        </div>
+        {!user && (
+          <p className="text-sm text-ink/50">Login to rate and review this product.</p>
+        )}
+
+        {user && user.role === "admin" && (
+          <p className="text-sm text-ink/50">Admins can't rate or review products.</p>
+        )}
+
+        {user && user.role !== "admin" && !canReview && (
+          <p className="rounded-md border border-ink/10 bg-sand p-3 text-sm text-ink/60">
+            You can rate and review this product only after you have bought it.
+          </p>
+        )}
+
+        {user && user.role !== "admin" && canReview && (
+          <div>
+            <p className="mb-2 text-sm font-medium text-ink">Rate this product</p>
+            <StarPicker value={reviewValue} onChange={setReviewValue} />
+            <div className="mt-3">
+              <Textarea
+                placeholder="Write a review (optional)..."
+                value={reviewMessage}
+                onChange={(e) => setReviewMessage(e.target.value)}
+              />
+            </div>
+            <Button className="mt-3" onClick={handleAddReview}>
+              Submit Review
+            </Button>
+            <p className="mt-2 text-xs text-ink/40">
+              Reviewed this before? Submitting again updates your old review.
+            </p>
+          </div>
+        )}
       </div>
 
       {relatedProducts.length > 0 && (

@@ -36,7 +36,7 @@ function AdminLayout() {
             <h1 className="font-display italic text-ink">Admin</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/shop/home" target="_blank" rel="noreferrer">
+            <Link to="/shop/home">
               <Button variant="outline">View Store</Button>
             </Link>
             <Button variant="outline" onClick={handleLogout}>
